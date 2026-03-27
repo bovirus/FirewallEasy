@@ -49,7 +49,7 @@
 ![](https://github.com/user-attachments/assets/956ab011-206a-4404-b123-c871a66c2bcc)
 
 ## Загрузка
->Версия для Windows 7, 8.1, 10, 11.
+>Поддерживается Windows 7, 8.1, 10, 11.
 
 **[Загрузить](https://github.com/r57zone/Firewall-Easy/releases)**
 

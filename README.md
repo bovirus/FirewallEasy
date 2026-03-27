@@ -49,7 +49,7 @@ Use the command line or scripts to block and unblock internet access for applica
 ![](https://github.com/user-attachments/assets/c5746b70-69a4-4f78-9319-e48ed713aad6)
 
 ## Download
->Version for Windows 7, 8.1, 10, 11.
+>Supports Windows 7, 8.1, 10, 11.
 
 **[Download](https://github.com/r57zone/Firewall-Easy/releases)**
 ## Feedback

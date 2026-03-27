@@ -34,6 +34,8 @@ type
     CloseBtn: TMenuItem;
     N3: TMenuItem;
     CMDOptions: TMenuItem;
+    DonateBtn: TMenuItem;
+    N4: TMenuItem;
     procedure AddBtnClick(Sender: TObject);
     procedure RemBtnClick(Sender: TObject);
     procedure FirewallBtnClick(Sender: TObject);
@@ -65,6 +67,7 @@ type
     procedure CloseBtnClick(Sender: TObject);
     procedure SettingsBtnClick(Sender: TObject);
     procedure CMDOptionsClick(Sender: TObject);
+    procedure DonateBtnClick(Sender: TObject);
   protected
     procedure WMDropFiles (var Msg: TMessage); message WM_DropFiles;
     procedure Status(const Content: string = '');
@@ -73,17 +76,18 @@ type
     procedure WMCopyData(var Msg: TWMCopyData); message WM_COPYDATA;
     function HandleParams: string;
     procedure SyncAppInfo;
-    procedure DragAndDrop;
     procedure FileAssociation(const Recreate: boolean);
     procedure FileExtension(const Recreate: boolean);
-    procedure ClassIdentifier(const Recreate: boolean);
-    procedure ControlPanel; // Recreation unnecessary
     { Private declarations }
   public
-    CompactContextMenu: boolean;
+    CompactContextMenu, AddedControlPanel: boolean;
     procedure ImportRules(const FilePath: string);
     procedure ExportRules(const FilePath: string);
     procedure ContextMenu(const Recreate, CompactMode: boolean);
+    procedure AddClassIdentifier;
+    procedure RemoveClassIdentifier;
+    procedure AddControlPanelEntry;
+    procedure RemoveControlPanelEntry;
     { Public declarations }
   end;
 
@@ -95,26 +99,29 @@ var
   SystemLang: string;
 
   // Tranlate / Перевод
-  ID_SEARCH: string;
+  IDS_SEARCH: string;
 
-  ID_ABOUT, ID_LAST_UPDATE: string;
+  IDS_ABOUT, IDS_LAST_UPDATE: string;
 
-  ID_RULE_SUCCESSFULLY_CREATED, ID_RULE_ALREADY_EXISTS, ID_RULE_SUCCESSFULLY_REMOVED, ID_RULE_NOT_FOUND, ID_APP_NOT_FOUND, ID_CHOOSE_RULE,
-  ID_RULES_SUCCESSFULLY_CREATED, ID_FAILED_CREATE_RULES, ID_RULES_SUCCESSFULLY_REMOVED, ID_FAILED_REMOVE_RULES, ID_REMOVED_RULES_FOR_NONEXISTENT_APPS, ID_INFO,
-  ID_RULES_FOR_NONEXISTENT_APPS_NOT_FOUND, ID_RULES_SUCCESSFULLY_IMPORTED, ID_RULES_SUCCESSFULLY_EXPORTED, ID_CONTEXT_MENU, ID_BLOCK_ACCESS,
-  ID_UNBLOCK_ACCESS, ID_UNBLOCK_ACCESS_CONTEXT_MENU, ID_APPLY, ID_CANCEL, ID_COMMAND_LINE_OPTIONS, ID_COMMAND_LINE_OPTIONS_TEXT: string;
+  IDS_RULE_SUCCESSFULLY_CREATED, IDS_RULE_ALREADY_EXISTS, IDS_RULE_SUCCESSFULLY_REMOVED, IDS_RULE_NOT_FOUND, IDS_APP_NOT_FOUND, IDS_CHOOSE_RULE,
+  IDS_RULES_SUCCESSFULLY_CREATED, IDS_FAILED_CREATE_RULES, IDS_RULES_SUCCESSFULLY_REMOVED, IDS_FAILED_REMOVE_RULES, IDS_REMOVED_RULES_FOR_NONEXISTENT_APPS,
+  IDS_INFO, IDS_RULES_FOR_NONEXISTENT_APPS_NOT_FOUND, IDS_RULES_SUCCESSFULLY_IMPORTED, IDS_RULES_SUCCESSFULLY_EXPORTED, IDS_CONTEXT_MENU, IDS_BLOCK_ACCESS,
+  IDS_UNBLOCK_ACCESS, IDS_UNBLOCK_ACCESS_CONTEXT_MENU, IDS_ADD_TO_CONTROL_PANEL, IDS_APPLY, IDS_CANCEL, IDS_COMMAND_LINE_OPTIONS, IDS_COMMAND_LINE_OPTIONS_TEXT: string;
 
 const
   AppName = 'Firewall Easy';
   AppID = 'FirewallEasy';
-  AppUUID = '{C697D2E2-DFC8-525E-9FB1-59FDC154E37F}';
-  AppVersion = '0.8.4';
+  AppUUID = '{4BBF9C81-ABF8-4BA9-A5FC-F654B754F30F}'; // Classic Control Panel
+  AppVersion = '0.9';
+  AppUpdateDate = '27.03.26';
 
   NET_FW_IP_PROTOCOL_TCP = 6;
   NET_FW_IP_PROTOCOL_UDP = 17;
 
   NET_FW_RULE_DIR_IN = 1;   // IN  - incoming connections / входящие соединения
   NET_FW_RULE_DIR_OUT = 2;  // OUT - outgoing / исходящие
+
+  KEY_WOW64_64KEY = $0100;
 
 implementation
 
@@ -125,6 +132,12 @@ uses Unit2;
 {$R UAC.res}
 
 function GetUserDefaultUILanguage: LANGID; stdcall; external 'kernel32.dll';
+
+function ChangeWindowMessageFilterEx(hWnd: HWND; msg: UINT; 
+  action: DWORD; pChangeFilterStruct: Pointer): BOOL; 
+  stdcall; external 'user32.dll';
+const
+  MSGFLT_ALLOW = 1;
 
 function CutStr(Str: string; CharCount: integer): string;
 begin
@@ -276,18 +289,18 @@ begin
   if not OpenDialog.Execute then Exit;
   if Pos(OpenDialog.FileName, RulePaths.Text) = 0 then begin
     AddRulesForApp(OpenDialog.FileName);
-    Status(Format(ID_RULE_SUCCESSFULLY_CREATED, [CutStr(ExtractFileName(OpenDialog.FileName), 22)]));
+    Status(Format(IDS_RULE_SUCCESSFULLY_CREATED, [CutStr(ExtractFileName(OpenDialog.FileName), 22)]));
   end else
-    Status(Format(ID_RULE_ALREADY_EXISTS, [CutStr(ExtractFileName(OpenDialog.FileName), 23)]));
+    Status(Format(IDS_RULE_ALREADY_EXISTS, [CutStr(ExtractFileName(OpenDialog.FileName), 23)]));
 end;
 
 procedure TMain.RemBtnClick(Sender: TObject);
 begin
   if ListView.ItemIndex <> - 1 then begin
-    Status(Format(ID_RULE_SUCCESSFULLY_REMOVED, [CutStr(ExtractFileName(RulePaths.Strings[ListView.ItemIndex]), 22)])); // После удаления названия уже не будет, поэтому перед удалением
+    Status(Format(IDS_RULE_SUCCESSFULLY_REMOVED, [CutStr(ExtractFileName(RulePaths.Strings[ListView.ItemIndex]), 22)])); // После удаления названия уже не будет, поэтому перед удалением
     RemoveAppRules(RuleNames.Strings[ListView.ItemIndex]);
   end else
-    Status(ID_CHOOSE_RULE);
+    Status(IDS_CHOOSE_RULE);
 end;
 
 procedure TMain.FirewallBtnClick(Sender: TObject);
@@ -324,9 +337,9 @@ begin
   DragFinish(Msg.WParam);
   
   if BlockedCount > 0 then
-    Status(ID_RULES_SUCCESSFULLY_CREATED + ' ' + IntToStr(BlockedCount))
+    Status(IDS_RULES_SUCCESSFULLY_CREATED + ' ' + IntToStr(BlockedCount))
   else
-    Status(ID_FAILED_CREATE_RULES);
+    Status(IDS_FAILED_CREATE_RULES);
 end;
 
 procedure TMain.LoadRegRules;
@@ -403,15 +416,15 @@ begin
     if FileExists(ExpandFileName(ParamStr(BlockParam))) then begin
       if Pos(AnsiLowerCase(ExpandFileName(ParamStr(BlockParam))), AnsiLowerCase(RulePaths.Text)) = 0 then begin
         AddRulesForApp(ExpandFileName(ParamStr(BlockParam)));
-        Status(Format(ID_RULE_SUCCESSFULLY_CREATED, [CutStr(ExtractFileName(ParamStr(BlockParam)), 22)]));
+        Status(Format(IDS_RULE_SUCCESSFULLY_CREATED, [CutStr(ExtractFileName(ParamStr(BlockParam)), 22)]));
         Inc(BlockedCount);
         Result:='%ADDED%';
       end else begin
-        Status(Format(ID_RULE_ALREADY_EXISTS, [CutStr(ExtractFileName(ParamStr(BlockParam)), 22)]));
+        Status(Format(IDS_RULE_ALREADY_EXISTS, [CutStr(ExtractFileName(ParamStr(BlockParam)), 22)]));
         Result:='%EXISTS%';
       end;
     end else begin
-      Status(Format(ID_APP_NOT_FOUND, [CutStr(ExtractFileName(ParamStr(BlockParam)), 22)]));
+      Status(Format(IDS_APP_NOT_FOUND, [CutStr(ExtractFileName(ParamStr(BlockParam)), 22)]));
       Result:='%ABSENT%';
     end;
 
@@ -421,13 +434,13 @@ begin
       for i:=0 to RuleNames.Count - 1 do
         if AnsiLowerCase(ExpandFileName(ParamStr(UnblockParam))) = AnsiLowerCase(RulePaths.Strings[i]) then begin
           RemoveAppRules(RuleNames.Strings[i]);
-          Status(Format(ID_RULE_SUCCESSFULLY_REMOVED, [CutStr(ExtractFileName(ParamStr(UnblockParam)), 22)]));
+          Status(Format(IDS_RULE_SUCCESSFULLY_REMOVED, [CutStr(ExtractFileName(ParamStr(UnblockParam)), 22)]));
           Inc(UnblockedCount);
           Result:='%REMOVED%';
           Break;
         end;
     end else begin
-      Status(Format(ID_RULE_NOT_FOUND, [CutStr(ExtractFileName(ParamStr(UnblockParam)), 22)]));
+      Status(Format(IDS_RULE_NOT_FOUND, [CutStr(ExtractFileName(ParamStr(UnblockParam)), 22)]));
       Result:='%MISSING%';
     end;
 
@@ -447,18 +460,6 @@ begin
   end;
 end;
 
-procedure TMain.DragAndDrop;
-var
-  Reg: TRegistry;
-begin
-  Reg:=TRegistry.Create(KEY_READ);
-  Reg.RootKey:=HKEY_LOCAL_MACHINE;
-  if (Reg.OpenKeyReadOnly('SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System')) and (Reg.ValueExists('EnableLUA')) and (Reg.ReadInteger('EnableLUA') = 0) then
-    DragAcceptFiles(Handle, true);
-  Reg.CloseKey;
-  Reg.Free;
-end;
-
 procedure TMain.ContextMenu(const Recreate, CompactMode: boolean);
 const
   RegKey = '\exefile\shell\' + AppID;
@@ -475,19 +476,19 @@ begin
     ExePath:=ParamStr(0);
     Reg.WriteString('Icon', ExePath + ',0');
     if CompactMode then begin
-      Reg.WriteString('MUIVerb', ID_BLOCK_ACCESS);
+      Reg.WriteString('MUIVerb', IDS_BLOCK_ACCESS);
       Reg.OpenKey(RegKey + '\Command', true);
       Reg.WriteString('', '"' + ExePath + '" --block "%1"');
     end else begin
-      Reg.WriteString('MUIVerb', ID_CONTEXT_MENU);
+      Reg.WriteString('MUIVerb', IDS_CONTEXT_MENU);
       Reg.WriteString('SubCommands', '');
       Reg.OpenKey(RegKey + '\Shell\Block', true);
-      Reg.WriteString('MUIVerb', ID_BLOCK_ACCESS);
+      Reg.WriteString('MUIVerb', IDS_BLOCK_ACCESS);
       Reg.WriteString('Icon', ExePath + ',1');
       Reg.OpenKey(RegKey + '\Shell\Block\Command', true);
       Reg.WriteString('', '"' + ExePath + '" --block "%1"');
       Reg.OpenKey(RegKey + '\Shell\Unblock', true);
-      Reg.WriteString('MUIVerb', ID_UNBLOCK_ACCESS);
+      Reg.WriteString('MUIVerb', IDS_UNBLOCK_ACCESS);
       Reg.WriteString('Icon', ExePath + ',2');
       Reg.OpenKey(RegKey + '\Shell\Unblock\Command', true);
       Reg.WriteString('', '"' + ExePath + '" --unblock "%1"');
@@ -513,9 +514,12 @@ begin
   else if Pos('Portuguese', SystemLang) > 0 then
     SystemLang:='Portuguese';
 
+  //SystemLang:='English';
   LangFileName:=SystemLang + '.ini';
-  if not FileExists(ExtractFilePath(ParamStr(0)) + 'Languages\' + LangFileName) then
+  if not FileExists(ExtractFilePath(ParamStr(0)) + 'Languages\' + LangFileName) then begin
     LangFileName:='English.Ini';
+    SystemLang:='English';
+  end;
   Ini:=TIniFile.Create(ExtractFilePath(ParamStr(0)) + 'Languages\' + LangFileName);
 
   FileBtn.Caption:=UTF8ToAnsi(Ini.ReadString('Main', 'FILE', 'File'));
@@ -525,19 +529,20 @@ begin
   CloseBtn.Caption:=UTF8ToAnsi(Ini.ReadString('Main', 'EXIT', 'Exit'));
   CloseBtn2.Caption:=CloseBtn.Caption;
   HelpBtn.Caption:=UTF8ToAnsi(Ini.ReadString('Main', 'HELP', 'Help'));
-  ID_INFO:=UTF8ToAnsi(Ini.ReadString('Main', 'INFO', 'Application allows you to block internet access to other applications using the Windows Firewall.'));
-  ID_ABOUT:=UTF8ToAnsi(Ini.ReadString('Main', 'ABOUT', 'About...'));
-  AboutBtn.Caption:=ID_ABOUT;
+  IDS_INFO:=UTF8ToAnsi(Ini.ReadString('Main', 'INFO', 'Application allows you to block internet access to other applications using the Windows Firewall.'));
+  DonateBtn.Caption:=UTF8ToAnsi(Ini.ReadString('Main', 'DONATE', 'Donate'));
+  IDS_ABOUT:=UTF8ToAnsi(Ini.ReadString('Main', 'ABOUT', 'About...'));
+  AboutBtn.Caption:=IDS_ABOUT;
 
-  ID_COMMAND_LINE_OPTIONS:=UTF8ToAnsi(Ini.ReadString('Main', 'COMMAND_LINE_OPTIONS', 'Command Line Options'));
-  CMDOptions.Caption:=ID_COMMAND_LINE_OPTIONS;
-  ID_COMMAND_LINE_OPTIONS_TEXT:=StringReplace(UTF8ToAnsi(Ini.ReadString('Main', 'COMMAND_LINE_OPTIONS_TEXT', 'Block internet:\n-b "App.exe" or --block "App.exe"\n\nUnblock internet:\n-u "App.exe" or --unblock "App.exe"\n\nImport rules:\n-i "Rules.fer" or --import "Rules.fer"\n\nExport rules:\n-e "Rules.fer" or --export "Rules.fer"\n\nSilent mode:\n-s or --silent')), '\n', sLineBreak, [rfReplaceAll]);
+  IDS_COMMAND_LINE_OPTIONS:=UTF8ToAnsi(Ini.ReadString('Main', 'COMMAND_LINE_OPTIONS', 'Command Line Options'));
+  CMDOptions.Caption:=IDS_COMMAND_LINE_OPTIONS;
+  IDS_COMMAND_LINE_OPTIONS_TEXT:=StringReplace(UTF8ToAnsi(Ini.ReadString('Main', 'COMMAND_LINE_OPTIONS_TEXT', 'Block internet:\n-b "App.exe" or --block "App.exe"\n\nUnblock internet:\n-u "App.exe" or --unblock "App.exe"\n\nImport rules:\n-i "Rules.fer" or --import "Rules.fer"\n\nExport rules:\n-e "Rules.fer" or --export "Rules.fer"\n\nSilent mode:\n-s or --silent')), '\n', sLineBreak, [rfReplaceAll]);
 
   ListView.Columns[0].Caption:=UTF8ToAnsi(Ini.ReadString('Main', 'APP_NAME', 'Name'));
   ListView.Columns[1].Caption:=UTF8ToAnsi(Ini.ReadString('Main', 'APP_PATH', 'Path'));
 
-  ID_SEARCH:=UTF8ToAnsi(Ini.ReadString('Main', 'SEARCH', 'Search...'));
-  SearchEdt.Text:=ID_SEARCH;
+  IDS_SEARCH:=UTF8ToAnsi(Ini.ReadString('Main', 'SEARCH', 'Search...'));
+  SearchEdt.Text:=IDS_SEARCH;
 
   AddBtn.Caption:=UTF8ToAnsi(Ini.ReadString('Main', 'ADD', 'Add'));
   OpenDialog.Filter:=UTF8ToAnsi(Ini.ReadString('Main', 'ADD_FILTER_NAME', 'Applications')) + OpenDialog.Filter;
@@ -546,38 +551,44 @@ begin
   CheckBtn.Caption:=UTF8ToAnsi(Ini.ReadString('Main', 'CHECK', 'Check'));
   FirewallBtn.Caption:=UTF8ToAnsi(Ini.ReadString('Main', 'FIREWALL', 'Firewall'));
 
-  ID_RULES_SUCCESSFULLY_IMPORTED:=UTF8ToAnsi(Ini.ReadString('Main', 'RULES_SUCCESSFULLY_IMPORTED', 'Rules successfully imported'));
-  ID_RULES_SUCCESSFULLY_EXPORTED:=UTF8ToAnsi(Ini.ReadString('Main', 'RULES_SUCCESSFULLY_EXPORTED', 'Rules successfully exported'));
-  ID_RULE_SUCCESSFULLY_CREATED:=UTF8ToAnsi(Ini.ReadString('Main', 'RULE_SUCCESSFULLY_CREATED', 'Rule for application "%s" successfully created'));
-  ID_RULE_ALREADY_EXISTS:=UTF8ToAnsi(Ini.ReadString('Main', 'RULE_ALREADY_EXISTS', 'Rule for app "%s" already exists'));
-  ID_RULE_SUCCESSFULLY_REMOVED:=UTF8ToAnsi(Ini.ReadString('Main', 'RULE_SUCCESSFULLY_REMOVED', 'Rule for application "%s" successfully removed'));
-  ID_RULE_NOT_FOUND:=UTF8ToAnsi(Ini.ReadString('Main', 'RULE_NOT_FOUND', 'Rule for app "%s" doesn''t exist'));
-  ID_APP_NOT_FOUND:=UTF8ToAnsi(Ini.ReadString('Main', 'APP_NOT_FOUND', 'Application "%s" doesn''t exist'));
-  ID_CHOOSE_RULE:=UTF8ToAnsi(Ini.ReadString('Main', 'CHOOSE_RULE', 'Choose rule'));
-  ID_RULES_SUCCESSFULLY_CREATED:=UTF8ToAnsi(Ini.ReadString('Main', 'RULES_SUCCESSFULLY_CREATED', 'Rules successfully created:'));
-  ID_FAILED_CREATE_RULES:=UTF8ToAnsi(Ini.ReadString('Main', 'FAILED_CREATE_RULES', 'Failed to create rules'));
-  ID_RULES_SUCCESSFULLY_REMOVED:=UTF8ToAnsi(Ini.ReadString('Main', 'RULES_SUCCESSFULLY_REMOVED', 'Rules successfully removed:'));
-  ID_FAILED_REMOVE_RULES:=UTF8ToAnsi(Ini.ReadString('Main', 'FAILED_REMOVE_RULES', 'Failed to remove rules'));
-  ID_REMOVED_RULES_FOR_NONEXISTENT_APPS:=UTF8ToAnsi(Ini.ReadString('Main', 'REMOVED_RULES_FOR_NONEXISTENT_APPS', 'Removed rules for nonexistent applications:'));
-  ID_RULES_FOR_NONEXISTENT_APPS_NOT_FOUND:=UTF8ToAnsi(Ini.ReadString('Main', 'RULES_FOR_NONEXISTENT_APPS_NOT_FOUND', 'Rules for nonexistent applications not found'));
+  IDS_RULES_SUCCESSFULLY_IMPORTED:=UTF8ToAnsi(Ini.ReadString('Main', 'RULES_SUCCESSFULLY_IMPORTED', 'Rules successfully imported'));
+  IDS_RULES_SUCCESSFULLY_EXPORTED:=UTF8ToAnsi(Ini.ReadString('Main', 'RULES_SUCCESSFULLY_EXPORTED', 'Rules successfully exported'));
+  IDS_RULE_SUCCESSFULLY_CREATED:=UTF8ToAnsi(Ini.ReadString('Main', 'RULE_SUCCESSFULLY_CREATED', 'Rule for application "%s" successfully created'));
+  IDS_RULE_ALREADY_EXISTS:=UTF8ToAnsi(Ini.ReadString('Main', 'RULE_ALREADY_EXISTS', 'Rule for app "%s" already exists'));
+  IDS_RULE_SUCCESSFULLY_REMOVED:=UTF8ToAnsi(Ini.ReadString('Main', 'RULE_SUCCESSFULLY_REMOVED', 'Rule for application "%s" successfully removed'));
+  IDS_RULE_NOT_FOUND:=UTF8ToAnsi(Ini.ReadString('Main', 'RULE_NOT_FOUND', 'Rule for app "%s" doesn''t exist'));
+  IDS_APP_NOT_FOUND:=UTF8ToAnsi(Ini.ReadString('Main', 'APP_NOT_FOUND', 'Application "%s" doesn''t exist'));
+  IDS_CHOOSE_RULE:=UTF8ToAnsi(Ini.ReadString('Main', 'CHOOSE_RULE', 'Choose rule'));
+  IDS_RULES_SUCCESSFULLY_CREATED:=UTF8ToAnsi(Ini.ReadString('Main', 'RULES_SUCCESSFULLY_CREATED', 'Rules successfully created:'));
+  IDS_FAILED_CREATE_RULES:=UTF8ToAnsi(Ini.ReadString('Main', 'FAILED_CREATE_RULES', 'Failed to create rules'));
+  IDS_RULES_SUCCESSFULLY_REMOVED:=UTF8ToAnsi(Ini.ReadString('Main', 'RULES_SUCCESSFULLY_REMOVED', 'Rules successfully removed:'));
+  IDS_FAILED_REMOVE_RULES:=UTF8ToAnsi(Ini.ReadString('Main', 'FAILED_REMOVE_RULES', 'Failed to remove rules'));
+  IDS_REMOVED_RULES_FOR_NONEXISTENT_APPS:=UTF8ToAnsi(Ini.ReadString('Main', 'REMOVED_RULES_FOR_NONEXISTENT_APPS', 'Removed rules for nonexistent applications:'));
+  IDS_RULES_FOR_NONEXISTENT_APPS_NOT_FOUND:=UTF8ToAnsi(Ini.ReadString('Main', 'RULES_FOR_NONEXISTENT_APPS_NOT_FOUND', 'Rules for nonexistent applications not found'));
 
-  ID_LAST_UPDATE:=UTF8ToAnsi(Ini.ReadString('Main', 'LAST_UPDATE', 'Last update:'));
-  ID_CONTEXT_MENU:=UTF8ToAnsi(Ini.ReadString('Main', 'CONTEXT_MENU', 'Firewall rules'));
-  ID_BLOCK_ACCESS:=UTF8ToAnsi(Ini.ReadString('Main', 'BLOCK_ACCESS', 'Block internet access'));
-  ID_UNBLOCK_ACCESS:=UTF8ToAnsi(Ini.ReadString('Main', 'UNBLOCK_ACCESS', 'Unblock internet access'));
+  IDS_LAST_UPDATE:=UTF8ToAnsi(Ini.ReadString('Main', 'LAST_UPDATE', 'Last update:'));
+  IDS_CONTEXT_MENU:=UTF8ToAnsi(Ini.ReadString('Main', 'CONTEXT_MENU', 'Firewall rules'));
+  IDS_BLOCK_ACCESS:=UTF8ToAnsi(Ini.ReadString('Main', 'BLOCK_ACCESS', 'Block internet access'));
+  IDS_UNBLOCK_ACCESS:=UTF8ToAnsi(Ini.ReadString('Main', 'UNBLOCK_ACCESS', 'Unblock internet access'));
+  IDS_ADD_TO_CONTROL_PANEL:=UTF8ToAnsi(Ini.ReadString('Main', 'ADD_TO_CONTROL_PANEL', 'Add to Control Panel'));
 
-  ID_UNBLOCK_ACCESS_CONTEXT_MENU:=UTF8ToAnsi(Ini.ReadString('Main', 'UNBLOCK_ACCESS_CONTEXT_MENU', 'Unblock internet access in context menu'));
-  ID_APPLY:=UTF8ToAnsi(Ini.ReadString('Main', 'APPLY', 'Apply'));
-  ID_CANCEL:=UTF8ToAnsi(Ini.ReadString('Main', 'CANCEL', 'Cancel'));
+  IDS_UNBLOCK_ACCESS_CONTEXT_MENU:=UTF8ToAnsi(Ini.ReadString('Main', 'UNBLOCK_ACCESS_CONTEXT_MENU', 'Unblock internet access in context menu'));
+  IDS_APPLY:=UTF8ToAnsi(Ini.ReadString('Main', 'APPLY', 'Apply'));
+  IDS_CANCEL:=UTF8ToAnsi(Ini.ReadString('Main', 'CANCEL', 'Cancel'));
 
   Ini.Free;
 
   Ini:=TIniFile.Create(ExtractFilePath(ParamStr(0)) + 'Setup.ini');
-  CompactContextMenu:=Ini.ReadBool('Main', 'CompactContextMenu', false);
+  CompactContextMenu:=Ini.ReadBool('Main', 'CompactContextMenu', true);
+  AddedControlPanel:=Ini.ReadBool('Main', 'ControlPanel', false);
   Ini.Free;
 
   SyncAppInfo;
-  DragAndDrop;
+  // Activate Drag and Drop
+  DragAcceptFiles(Handle, true);
+  ChangeWindowMessageFilterEx(Handle, WM_DROPFILES, MSGFLT_ALLOW, nil);
+  ChangeWindowMessageFilterEx(Handle, WM_COPYDATA, MSGFLT_ALLOW, nil);
+  ChangeWindowMessageFilterEx(Handle, $0049 {WM_COPYGLOBALDATA}, MSGFLT_ALLOW, nil);
 
   RuleNames:=TStringList.Create;
   RulePaths:=TStringList.Create;
@@ -617,9 +628,9 @@ begin
     end;
 
   if UnblockedCount <> 0 then
-    Status(ID_REMOVED_RULES_FOR_NONEXISTENT_APPS + ' ' + IntToStr(UnblockedCount))
+    Status(IDS_REMOVED_RULES_FOR_NONEXISTENT_APPS + ' ' + IntToStr(UnblockedCount))
   else
-    Status(ID_RULES_FOR_NONEXISTENT_APPS_NOT_FOUND);
+    Status(IDS_RULES_FOR_NONEXISTENT_APPS_NOT_FOUND);
 end;
 
 procedure TMain.FormShow(Sender: TObject);
@@ -648,15 +659,15 @@ begin
   if Receiver = '%ADDED%' then begin
     Inc(BlockedCount);
     LoadRegRules;
-    Status(ID_RULES_SUCCESSFULLY_CREATED + ' ' + IntToStr(BlockedCount));
+    Status(IDS_RULES_SUCCESSFULLY_CREATED + ' ' + IntToStr(BlockedCount));
   end else if Receiver = '%REMOVED%' then begin
     Inc(UnblockedCount);
     LoadRegRules;
-    Status(ID_RULES_SUCCESSFULLY_REMOVED + ' ' + IntToStr(UnblockedCount));
+    Status(IDS_RULES_SUCCESSFULLY_REMOVED + ' ' + IntToStr(UnblockedCount));
   end else if (Receiver = '%EXISTS%') or (Receiver = '%ABSENT%') then
-    Status(ID_FAILED_CREATE_RULES)
+    Status(IDS_FAILED_CREATE_RULES)
   else if Receiver = '%MISSING%' then
-    Status(ID_FAILED_REMOVE_RULES)
+    Status(IDS_FAILED_REMOVE_RULES)
   else if Receiver = '%IMPORTED%' then
     CheckBtn.Click;
 
@@ -721,7 +732,7 @@ begin
   if Key = VK_MENU then
     Key:=0;
 
-  if SearchEdt.Text = ID_SEARCH then begin
+  if SearchEdt.Text = IDS_SEARCH then begin
     SearchEdt.Font.Color:=clBlack;
     SearchEdt.Clear;
   end;
@@ -732,14 +743,14 @@ procedure TMain.SearchEdtKeyUp(Sender: TObject; var Key: Word;
 begin
   if SearchEdt.Text = '' then begin
     SearchEdt.Font.Color:=clGray;
-    SearchEdt.Text:=ID_SEARCH;
+    SearchEdt.Text:=IDS_SEARCH;
   end;
 end;
 
 procedure TMain.SearchEdtMouseDown(Sender: TObject; Button: TMouseButton;
   Shift: TShiftState; X, Y: integer);
 begin
-  if SearchEdt.Text = ID_SEARCH then begin
+  if SearchEdt.Text = IDS_SEARCH then begin
     SearchEdt.Font.Color:=clBlack;
     SearchEdt.Clear;
   end;
@@ -760,9 +771,9 @@ end;
 procedure TMain.AboutBtnClick(Sender: TObject);
 begin
   Application.MessageBox(PChar(Caption + ' ' + AppVersion + #13#10 +
-  ID_LAST_UPDATE + ' 28.06.25' + #13#10 +
+  IDS_LAST_UPDATE + ' ' + AppUpdateDate + #13#10 +
   'https://r57zone.github.io' + #13#10 +
-  'r57zone@gmail.com'), PChar(ID_ABOUT), MB_ICONINFORMATION);
+  'r57zone@gmail.com'), PChar(IDS_ABOUT), MB_ICONINFORMATION);
 end;
 
 procedure TMain.ListViewMouseDown(Sender: TObject; Button: TMouseButton;
@@ -776,7 +787,7 @@ begin
 
   if SearchEdt.Text = '' then begin
     SearchEdt.Font.Color:=clGray;
-    SearchEdt.Text:=ID_SEARCH;
+    SearchEdt.Text:=IDS_SEARCH;
   end;
 end;
 
@@ -789,7 +800,7 @@ procedure TMain.ExportRules(const FilePath: string);
 begin
   if RulePaths.Count > 0 then begin
     RulePaths.SaveToFile(FilePath);
-    Status(ID_RULES_SUCCESSFULLY_EXPORTED);
+    Status(IDS_RULES_SUCCESSFULLY_EXPORTED);
   end;
 end;
 
@@ -809,7 +820,7 @@ begin
         Inc(BlockedCount);
       end;
 
-    Status(ID_RULES_SUCCESSFULLY_IMPORTED);
+    Status(IDS_RULES_SUCCESSFULLY_IMPORTED);
 
     ImportRulesList.Free;
   end;
@@ -852,43 +863,6 @@ begin
   Reg.Free;
 end;
 
-procedure TMain.ClassIdentifier(const Recreate: boolean);
-const
-  RegKey = '\CLSID\' + AppUUID;
-var
-  Reg: TRegistry;
-begin
-  Reg:=TRegistry.Create;
-  Reg.RootKey:=HKEY_CLASSES_ROOT;
-  if Recreate and Reg.KeyExists(RegKey) then
-    Reg.DeleteKey(RegKey);
-  if (Reg.OpenKeyReadOnly(RegKey) = false) and Reg.OpenKey(RegKey, true) then begin
-    Reg.WriteString('', AppName);
-    Reg.WriteString('InfoTip', ID_INFO);
-    Reg.WriteString('System.ControlPanel.Category', '3'); // Network and Internet
-    Reg.OpenKey(RegKey + '\DefaultIcon', true);
-    Reg.WriteString('', ParamStr(0) + ',0');
-    Reg.OpenKey(RegKey + '\Shell\Open\Command', true);
-    Reg.WriteString('', '"' + ParamStr(0) + '"');
-  end;
-  Reg.CloseKey;
-  Reg.Free;
-end;
-
-procedure TMain.ControlPanel;
-const
-  RegKey = '\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\ControlPanel\NameSpace\' + AppUUID;
-var
-  Reg: TRegistry;
-begin
-  Reg:=TRegistry.Create;
-  Reg.RootKey:=HKEY_LOCAL_MACHINE;
-  if (Reg.OpenKeyReadOnly(RegKey) = false) and Reg.OpenKey(RegKey, true) then
-    Reg.WriteString('', AppName);
-  Reg.CloseKey;
-  Reg.Free;
-end;
-
 procedure TMain.SyncAppInfo;
 var
   Reg: TRegistry;
@@ -910,8 +884,6 @@ begin
   ContextMenu(IsDifferent, CompactContextMenu);
   FileAssociation(IsDifferent);
   FileExtension(IsDifferent);
-  ClassIdentifier(IsDifferent);
-  ControlPanel;
 end;
 
 procedure TMain.CloseBtnClick(Sender: TObject);
@@ -926,7 +898,95 @@ end;
 
 procedure TMain.CMDOptionsClick(Sender: TObject);
 begin
-  Application.MessageBox(PChar(ID_COMMAND_LINE_OPTIONS_TEXT), PChar(ID_COMMAND_LINE_OPTIONS), MB_ICONINFORMATION);
+  Application.MessageBox(PChar(IDS_COMMAND_LINE_OPTIONS_TEXT), PChar(IDS_COMMAND_LINE_OPTIONS), MB_ICONINFORMATION);
+end;
+
+procedure TMain.AddClassIdentifier;
+const
+  RegKey = '\SOFTWARE\Classes\CLSID\' + AppUUID;
+var
+  Reg: TRegistry;
+begin
+  Reg:=TRegistry.Create;
+  try
+    Reg.RootKey:=HKEY_LOCAL_MACHINE;
+    Reg.Access:=KEY_ALL_ACCESS or KEY_WOW64_64KEY;
+
+    if Reg.OpenKey(RegKey, True) then begin
+      Reg.WriteString('', AppName);
+      Reg.WriteString('InfoTip', IDS_INFO);
+      Reg.WriteString('System.ApplicationName', 'r57zone.FirewallEasy');
+      Reg.WriteString('System.ControlPanel.Category', '3');
+    end;
+
+    if Reg.OpenKey(RegKey + '\DefaultIcon', True) then
+      Reg.WriteString('', ParamStr(0) + ',0');
+
+    if Reg.OpenKey(RegKey + '\Shell\Open\Command', True) then
+      Reg.WriteString('', '"' + ParamStr(0) + '"');
+
+    Reg.CloseKey;
+  finally
+    Reg.Free;
+  end;
+end;
+
+procedure TMain.RemoveClassIdentifier;
+const
+  RegKey = '\SOFTWARE\Classes\CLSID\' + AppUUID;
+var
+  Reg: TRegistry;
+begin
+  Reg:=TRegistry.Create;
+  try
+    Reg.RootKey:=HKEY_LOCAL_MACHINE;
+    Reg.Access := KEY_ALL_ACCESS or KEY_WOW64_64KEY;
+    if Reg.KeyExists(RegKey) then
+      Reg.DeleteKey(RegKey);
+  finally
+    Reg.Free;
+  end;
+end;
+
+procedure TMain.AddControlPanelEntry;
+const
+  RegKey = '\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\ControlPanel\NameSpace\' + AppUUID;
+var
+  Reg: TRegistry;
+begin
+  Reg:=TRegistry.Create;
+  try
+    Reg.RootKey := HKEY_LOCAL_MACHINE;
+    Reg.Access := KEY_ALL_ACCESS or KEY_WOW64_64KEY;
+    if Reg.OpenKey(RegKey, True) then
+      Reg.WriteString('', AppName);
+    Reg.CloseKey;
+  finally
+    Reg.Free;
+  end;
+end;
+
+procedure TMain.RemoveControlPanelEntry;
+const
+  RegKey = '\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\ControlPanel\NameSpace\' + AppUUID;
+var
+  Reg: TRegistry;
+begin
+  Reg:=TRegistry.Create;
+  try
+    Reg.RootKey:=HKEY_LOCAL_MACHINE;
+    Reg.Access := KEY_ALL_ACCESS or KEY_WOW64_64KEY;
+    if Reg.KeyExists(RegKey) then
+      Reg.DeleteKey(RegKey);
+    Reg.CloseKey;
+  finally
+    Reg.Free;
+  end;
+end;
+
+procedure TMain.DonateBtnClick(Sender: TObject);
+begin
+  ShellExecute(0, 'open', 'https://boosty.to/r57', nil, nil, SW_SHOWNORMAL);
 end;
 
 end.

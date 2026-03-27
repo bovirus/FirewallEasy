@@ -4,7 +4,7 @@ object Settings: TSettings
   BorderIcons = [biSystemMenu, biMinimize]
   BorderStyle = bsSingle
   Caption = #1053#1072#1089#1090#1088#1086#1081#1082#1080
-  ClientHeight = 90
+  ClientHeight = 135
   ClientWidth = 285
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -28,7 +28,7 @@ object Settings: TSettings
   end
   object Panel: TPanel
     Left = 0
-    Top = 49
+    Top = 94
     Width = 285
     Height = 41
     Align = alBottom
@@ -51,5 +51,13 @@ object Settings: TSettings
       TabOrder = 1
       OnClick = CancelBtnClick
     end
+  end
+  object AddControlPanelCB: TCheckBox
+    Left = 8
+    Top = 48
+    Width = 273
+    Height = 41
+    Caption = #1044#1086#1073#1072#1074#1080#1090#1100' '#1074' '#1055#1072#1085#1077#1083#1100' '#1091#1087#1088#1072#1074#1083#1077#1085#1080#1103
+    TabOrder = 2
   end
 end

@@ -12,6 +12,7 @@ type
     Panel: TPanel;
     ApplyBtn: TButton;
     CancelBtn: TButton;
+    AddControlPanelCB: TCheckBox;
     procedure ApplyBtnClick(Sender: TObject);
     procedure CancelBtnClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
@@ -37,8 +38,17 @@ begin
   Ini:=TIniFile.Create(ExtractFilePath(ParamStr(0)) + 'Setup.ini');
   Main.CompactContextMenu:=not AddUnblockContextMenuCB.Checked;
   Ini.WriteBool('Main', 'CompactContextMenu', Main.CompactContextMenu);
+  Main.AddedControlPanel:=AddControlPanelCB.Checked;
+  Ini.WriteBool('Main', 'ControlPanel', Main.AddedControlPanel);
   Ini.Free;
   Main.ContextMenu(true, Main.CompactContextMenu);
+  if Main.AddedControlPanel then begin
+    Main.AddClassIdentifier;
+    Main.AddControlPanelEntry;
+  end else begin
+    Main.RemoveControlPanelEntry;
+    Main.RemoveClassIdentifier;
+  end;
   Close;
 end;
 
@@ -49,11 +59,14 @@ end;
 
 procedure TSettings.FormCreate(Sender: TObject);
 begin
-  AddUnblockContextMenuCB.Checked:=not Main.CompactContextMenu;
   Caption:=Main.SettingsBtn.Caption;
-  AddUnblockContextMenuCB.Caption:=ID_UNBLOCK_ACCESS_CONTEXT_MENU;
-  ApplyBtn.Caption:=ID_APPLY;
-  CancelBtn.Caption:=ID_CANCEL;
+  AddUnblockContextMenuCB.Caption:=IDS_UNBLOCK_ACCESS_CONTEXT_MENU;
+  AddControlPanelCB.Caption:=IDS_ADD_TO_CONTROL_PANEL;
+  ApplyBtn.Caption:=IDS_APPLY;
+  CancelBtn.Caption:=IDS_CANCEL;
+
+  AddUnblockContextMenuCB.Checked:=not Main.CompactContextMenu;
+  AddControlPanelCB.Checked:=Main.AddedControlPanel;
 end;
 
 end.

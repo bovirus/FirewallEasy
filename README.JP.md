@@ -49,7 +49,7 @@ Firewall Easyは、Windowsファイアウォールでアプリケーションの
 ![](https://github.com/user-attachments/assets/c5746b70-69a4-4f78-9319-e48ed713aad6)
 
 ## ダウンロード
->Version for Windows 7, 8.1, 10, 11.
+>Supports Windows 7, 8.1, 10, 11.
 
 **[ダウンロード](https://github.com/r57zone/Firewall-Easy/releases)**
 ## フィードバック
