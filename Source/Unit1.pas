@@ -76,6 +76,8 @@ type
     procedure DragAndDrop;
     procedure FileAssociation(const Recreate: boolean);
     procedure FileExtension(const Recreate: boolean);
+    procedure ClassIdentifier(const Recreate: boolean);
+    procedure ControlPanel; // Recreation unnecessary
     { Private declarations }
   public
     CompactContextMenu: boolean;
@@ -98,13 +100,14 @@ var
   ID_ABOUT, ID_LAST_UPDATE: string;
 
   ID_RULE_SUCCESSFULLY_CREATED, ID_RULE_ALREADY_EXISTS, ID_RULE_SUCCESSFULLY_REMOVED, ID_RULE_NOT_FOUND, ID_APP_NOT_FOUND, ID_CHOOSE_RULE,
-  ID_RULES_SUCCESSFULLY_CREATED, ID_FAILED_CREATE_RULES, ID_RULES_SUCCESSFULLY_REMOVED, ID_FAILED_REMOVE_RULES, ID_REMOVED_RULES_FOR_NONEXISTENT_APPS,
+  ID_RULES_SUCCESSFULLY_CREATED, ID_FAILED_CREATE_RULES, ID_RULES_SUCCESSFULLY_REMOVED, ID_FAILED_REMOVE_RULES, ID_REMOVED_RULES_FOR_NONEXISTENT_APPS, ID_INFO,
   ID_RULES_FOR_NONEXISTENT_APPS_NOT_FOUND, ID_RULES_SUCCESSFULLY_IMPORTED, ID_RULES_SUCCESSFULLY_EXPORTED, ID_CONTEXT_MENU, ID_BLOCK_ACCESS,
   ID_UNBLOCK_ACCESS, ID_UNBLOCK_ACCESS_CONTEXT_MENU, ID_APPLY, ID_CANCEL, ID_COMMAND_LINE_OPTIONS, ID_COMMAND_LINE_OPTIONS_TEXT: string;
 
 const
   AppName = 'Firewall Easy';
   AppID = 'FirewallEasy';
+  AppUUID = '{C697D2E2-DFC8-525E-9FB1-59FDC154E37F}';
   AppVersion = '0.8.4';
 
   NET_FW_IP_PROTOCOL_TCP = 6;
@@ -522,6 +525,7 @@ begin
   CloseBtn.Caption:=UTF8ToAnsi(Ini.ReadString('Main', 'EXIT', 'Exit'));
   CloseBtn2.Caption:=CloseBtn.Caption;
   HelpBtn.Caption:=UTF8ToAnsi(Ini.ReadString('Main', 'HELP', 'Help'));
+  ID_INFO:=UTF8ToAnsi(Ini.ReadString('Main', 'INFO', 'Application allows you to block internet access to other applications using the Windows Firewall.'));
   ID_ABOUT:=UTF8ToAnsi(Ini.ReadString('Main', 'ABOUT', 'About...'));
   AboutBtn.Caption:=ID_ABOUT;
 
@@ -848,6 +852,43 @@ begin
   Reg.Free;
 end;
 
+procedure TMain.ClassIdentifier(const Recreate: boolean);
+const
+  RegKey = '\CLSID\' + AppUUID;
+var
+  Reg: TRegistry;
+begin
+  Reg:=TRegistry.Create;
+  Reg.RootKey:=HKEY_CLASSES_ROOT;
+  if Recreate and Reg.KeyExists(RegKey) then
+    Reg.DeleteKey(RegKey);
+  if (Reg.OpenKeyReadOnly(RegKey) = false) and Reg.OpenKey(RegKey, true) then begin
+    Reg.WriteString('', AppName);
+    Reg.WriteString('InfoTip', ID_INFO);
+    Reg.WriteString('System.ControlPanel.Category', '3'); // Network and Internet
+    Reg.OpenKey(RegKey + '\DefaultIcon', true);
+    Reg.WriteString('', ParamStr(0) + ',0');
+    Reg.OpenKey(RegKey + '\Shell\Open\Command', true);
+    Reg.WriteString('', '"' + ParamStr(0) + '"');
+  end;
+  Reg.CloseKey;
+  Reg.Free;
+end;
+
+procedure TMain.ControlPanel;
+const
+  RegKey = '\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\ControlPanel\NameSpace\' + AppUUID;
+var
+  Reg: TRegistry;
+begin
+  Reg:=TRegistry.Create;
+  Reg.RootKey:=HKEY_LOCAL_MACHINE;
+  if (Reg.OpenKeyReadOnly(RegKey) = false) and Reg.OpenKey(RegKey, true) then
+    Reg.WriteString('', AppName);
+  Reg.CloseKey;
+  Reg.Free;
+end;
+
 procedure TMain.SyncAppInfo;
 var
   Reg: TRegistry;
@@ -869,6 +910,8 @@ begin
   ContextMenu(IsDifferent, CompactContextMenu);
   FileAssociation(IsDifferent);
   FileExtension(IsDifferent);
+  ClassIdentifier(IsDifferent);
+  ControlPanel;
 end;
 
 procedure TMain.CloseBtnClick(Sender: TObject);
