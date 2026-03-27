@@ -933,16 +933,19 @@ end;
 
 procedure TMain.RemoveClassIdentifier;
 const
-  RegKey = '\SOFTWARE\Classes\CLSID\' + AppUUID;
+  ParentKey = '\SOFTWARE\Classes\CLSID';
 var
   Reg: TRegistry;
 begin
   Reg:=TRegistry.Create;
   try
     Reg.RootKey:=HKEY_LOCAL_MACHINE;
-    Reg.Access := KEY_ALL_ACCESS or KEY_WOW64_64KEY;
-    if Reg.KeyExists(RegKey) then
-      Reg.DeleteKey(RegKey);
+    Reg.Access:=KEY_ALL_ACCESS or KEY_WOW64_64KEY;
+    if Reg.OpenKey(ParentKey, False) then begin
+      if Reg.KeyExists(AppUUID) then
+        Reg.DeleteKey(AppUUID);
+      Reg.CloseKey;
+    end;
   finally
     Reg.Free;
   end;
@@ -968,17 +971,19 @@ end;
 
 procedure TMain.RemoveControlPanelEntry;
 const
-  RegKey = '\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\ControlPanel\NameSpace\' + AppUUID;
+  ParentKey = '\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\ControlPanel\NameSpace';
 var
   Reg: TRegistry;
 begin
   Reg:=TRegistry.Create;
   try
     Reg.RootKey:=HKEY_LOCAL_MACHINE;
-    Reg.Access := KEY_ALL_ACCESS or KEY_WOW64_64KEY;
-    if Reg.KeyExists(RegKey) then
-      Reg.DeleteKey(RegKey);
-    Reg.CloseKey;
+    Reg.Access:=KEY_ALL_ACCESS or KEY_WOW64_64KEY;
+    if Reg.OpenKey(ParentKey, False) then begin
+      if Reg.KeyExists(AppUUID) then
+        Reg.DeleteKey(AppUUID);
+      Reg.CloseKey;
+    end;
   finally
     Reg.Free;
   end;
